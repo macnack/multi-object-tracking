@@ -4,7 +4,8 @@ from sklearn.metrics import jaccard_score
 from skimage.metrics import structural_similarity as ssim_fun
 import cv2 as cv
 import numpy as np
-from utils_cv import show2, show
+from utils_cv import show2, show, get_iou, get_histogram_correlation
+from scipy.optimize import linear_sum_assignment
 
 
 def load_data_paths(dataset_path):
@@ -86,26 +87,6 @@ def boxes_in_frame(frame, draw=None):
     return boxes
 
 
-def get_iou(boxA, boxB):
-    # Calculate coordinates of intersection rectangle
-    xA = max(boxA[0], boxB[0])
-    yA = max(boxA[1], boxB[1])
-    xB = min(boxA[2], boxB[2])
-    yB = min(boxA[3], boxB[3])
-
-    # Calculate area of intersection rectangle
-    intersection_area = max(0, xB - xA + 1) * max(0, yB - yA + 1)
-
-    # Calculate area of both bounding boxes
-    boxA_area = (boxA[2] - boxA[0] + 1) * (boxA[3] - boxA[1] + 1)
-    boxB_area = (boxB[2] - boxB[0] + 1) * (boxB[3] - boxB[1] + 1)
-
-    # Calculate the Intersection over Union
-    iou = intersection_area / float(boxA_area + boxB_area - intersection_area)
-
-    return iou
-
-
 def get_area(box):
     height = abs(box[1] - box[3])
     width = abs(box[0] - box[2])
@@ -113,25 +94,10 @@ def get_area(box):
 
 
 def get_ssim(source, target):
-    target_resized = cv.resize(target, (source.shape[1], source.shape[0]))
+    target_resized = cv.resize(target, dsize=(
+        source.shape[1], source.shape[0]))
     # show2(source, target_resized)
     return ssim_fun(source, target_resized, data_range=source.max() - source.min(), channel_axis=2)
-
-
-def get_histogram_correlation(source, target):
-    # source = cv.cvtColor(source, cv.COLOR_BGR2GRAY)
-    # target = cv.cvtColor(target, cv.COLOR_BGR2GRAY)
-    # # target = cv.resize(target, (source.shape[1], source.shape[0], source.shape[3]))
-    # source_hist = cv.calcHist([source], [0], None, [255], [0, 256])
-    # target_hist = cv.calcHist([target], [0], None, [256], [0, 256])
-    # source_hist = cv.normalize(source_hist, source_hist, alpha=0, beta=1, norm_type=cv.NORM_MINMAX)
-    # target_hist = cv.normalize(target_hist, target_hist, alpha=0, beta=1, norm_type=cv.NORM_MINMAX)
-    show(source, "source")
-    source = cv.cvtColor(source, cv.COLOR_BGR2GRAY)
-    show(source, "source")
-    source_hist = cv.calcHist([source], [0], None, [255], [0, 256])
-    # correlation = cv.compareHist(source_hist, target_hist, cv.HISTCMP_CORREL)
-    return 1.0
 
 
 def get_center_box(box):
@@ -164,61 +130,28 @@ def combine_probabilities(probabilities, weights=None):
     return combined_prob
 
 
-if __name__ == '__main__':
-    images_path = load_data_paths('training/0000')
-    data = read_lines("labels/0000.txt")
-    img_path = images_path[1]
+def hungarian_algorithm(matrix):
+    row_idx, col_idx = linear_sum_assignment(-matrix)
+    # return ID of most propability object
+    return row_idx, col_idx
 
-    img = cv.imread(img_path, cv.IMREAD_COLOR)
 
-    frame_last = cv.imread(images_path[0], cv.IMREAD_COLOR)
-    frame = cv.imread(images_path[1], cv.IMREAD_COLOR)
+def bipartite_matrix(last_frame_path, frame_path, data):
+    last_objects = boxes_in_frame(data[last_frame_path])
+    last_frame = cv.imread(last_frame_path, cv.IMREAD_COLOR)
 
-    last_objects = boxes_in_frame(data[images_path[0]])
-    current_objects = boxes_in_frame(data[images_path[1]])
-    adjacency_matrix = np.empty((0, len(current_objects)))
-    # for id_current, curr in current_objects.items():
-    #     _, pts_curr = curr
-    #     output = ""
-    #     col = np.zeros(shape=(len(last_objects),1))
-    #     j = 0
-    #     frame_cropped = frame[pts_curr[1]: pts_curr[3], pts_curr[0]: pts_curr[2], :]
-    #     for id_last, last in last_objects.items():
-    #         _, pts_last = last
-    #         iou = get_iou(pts_last, pts_curr)
-    #         iou = round(iou, 2)
-    #         frame_last_cropped = frame_last[pts_last[1]: pts_last[3], pts_last[0]: pts_last[2], :]
-    #         jac = get_ssim(frame_last_cropped, frame_cropped)
-    #         dist = distance_to_probability(pts_last, pts_curr)
-    #         dist = round(dist,2)
-    #         comb = combine_probabilities([jac, iou])
-    #         output += "IOU id: " + \
-    #             str(id_current) + " id_last: " + \
-    #             str(id_last) + " " + str(iou) + '\n'
-    #         output += "SSIM id: " + \
-    #             str(id_current) + " id_last: " + \
-    #             str(id_last) + " " + str(jac) + '\n'
-    #         output += "Distance id: " + \
-    #             str(id_current) + " id_last: " + \
-    #             str(id_last) + " " + str(dist) + '\n'
-    #         output += "Weig id: " + str(id_current) + " id_last: " + str(id_last) + " " + str(comb) +'\n\n'
-    #         col[j] = iou
-    #         j+=1
-    #     print(col)
-    # print(output)
-    curr_frame = cv.imread(images_path[1], cv.IMREAD_COLOR)
-    last_frame = cv.imread(images_path[0], cv.IMREAD_COLOR)
+    current_objects = boxes_in_frame(data[frame_path])
+    curr_frame = cv.imread(frame_path, cv.IMREAD_COLOR)
+
     adjacency_matrix = np.empty((0, len(last_objects)))
     for id_last, last in last_objects.items():
         _, last_bbox = last
-        last_frame_cropped = last_frame[last_bbox[1]
-            : last_bbox[3], last_bbox[0]: last_bbox[2], :]
+        last_frame_cropped = last_frame[last_bbox[1]: last_bbox[3], last_bbox[0]: last_bbox[2], :]
         row = np.zeros(len(current_objects))
         i = 0
         for id_curr, curr in current_objects.items():
             _, curr_bbox = curr
-            curr_frame_cropped = curr_frame[curr_bbox[1]
-                : curr_bbox[3], curr_bbox[0]: curr_bbox[2], :]
+            curr_frame_cropped = curr_frame[curr_bbox[1]: curr_bbox[3], curr_bbox[0]: curr_bbox[2], :]
             iou = np.round(get_iou(last_bbox, curr_bbox), 2)
             ssim = get_ssim(last_frame_cropped, curr_frame_cropped)
             dist = distance_to_probability(last_bbox, curr_bbox)
@@ -228,19 +161,79 @@ if __name__ == '__main__':
             row[i] = hist
             i += 1
         adjacency_matrix = np.vstack((adjacency_matrix, row))
+    return adjacency_matrix
 
-    print(adjacency_matrix)
-    show2(last_frame, curr_frame)
-    # print(get_iou(pts_last, pts))
-    # cv.rectangle(img, (pts_last[0], pts_last[1]), (pts_last[2], pts_last[2]), color=(255,0,0), thickness=3)
-    # cv.rectangle(img, (pts[0], pts[1]), (pts[2], pts[2]), color=(0,255,0), thickness=3)
-    # cv.imshow(img_path[0], img)
-    # cv.waitKey(10000)
-    # get_iou(bb0, bb1)
 
-    # print(data[images_path[0]])
-    # print()
-    # print(data[images_path[1]])
-    # for obj in data[images_path[0]]:
-    #     print(obj)
-    # cv.waitKey(1000)
+def read_bboxes(filename, prefix):
+    data = {}
+    with open(filename, 'r') as f:
+        while line := f.readline():
+            filename = line.rsplit()[0]
+            number_of_objects = f.readline().rsplit()[0]
+            objects = []
+            for i in range(int(float(number_of_objects))):
+                [x, y, w, h] = f.readline().rsplit()
+                if float(x) < 0.0:
+                    x = str(0)
+                if float(y) < 0.0:
+                    y = str(0)
+                object = [float(x), float(y), float(
+                    x)+float(w), float(y)+float(h)]
+                object = [int(round(x)) for x in object]
+                objects.append(object)
+            data[prefix+'/'+str(filename)] = objects
+    return data
+
+
+if __name__ == '__main__':
+    path = "frames"
+    images_path = load_data_paths(path)
+    data = read_bboxes(filename="bboxes.txt", prefix=path)
+    last_frame = None
+
+    with open("result.txt", 'w') as output:
+        output.close()
+
+    for img_path in images_path:
+        current_objects = data[img_path]
+        frame = cv.imread(img_path, cv.IMREAD_COLOR)
+        output = [-1 for x in range(len(current_objects))]
+        # print(img_path)
+        if last_frame is not None:
+            last_objects = data[last_frame]
+            last_frame = cv.imread(last_frame, cv.IMREAD_COLOR)
+
+            rows = max(len(last_objects)+1, len(current_objects)+1)
+
+            adjacency_matrix = np.ones(shape=(rows, len(current_objects))) * 0.3
+            
+            for id_last, last_bbox in enumerate(last_objects):
+                last_object = last_frame[last_bbox[1]: last_bbox[3], last_bbox[0]: last_bbox[2], :]
+                row = np.empty((len(current_objects)))
+                
+                for id, curr_bbox in enumerate(current_objects):
+                    curr_object = frame[curr_bbox[1]: curr_bbox[3], curr_bbox[0]: curr_bbox[2], :]
+                    iou = np.round(get_iou(last_bbox, curr_bbox), 2)
+                    ssim = get_ssim(last_object, curr_object)
+                    hist = get_histogram_correlation(last_object, curr_object)
+                    adjacency_matrix[id_last, id] = combine_probabilities([iou, ssim, hist], [0.1, 0.3, 0.6])
+            
+            idx_row, idx_col = hungarian_algorithm(adjacency_matrix.T)
+            output = []
+            for j, i in zip(idx_col, idx_row):
+                if j >= len(last_objects):
+                    j = -1
+                output.append(j)
+            # print(adjacency_matrix)
+        output_buffer = " ".join(map(str, output)) + '\n'
+        output_buffer_file = "\n".join(map(str, output)) + '\n'
+        print(output_buffer)
+        with open("result.txt", 'a') as output_file:
+            output_file.write(f"{img_path[len(path)+1:]}\n")
+            output_file.write(f"{len(current_objects)}\n")
+            output_file.write(output_buffer_file)
+        last_frame = img_path
+
+    # data = read_lines("labels/0000.txt")
+    # adjacency_matrix = bipartite_matrix(images_path[0], images_path[1], data)
+    # print(adjacency_matrix)
