@@ -159,4 +159,11 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 .DS_Store
+siwr_venv/
+frames/
+*.txt
 *.png
+siwr_venv/bin/activate
+*.csh
+*.fish
+*.ps1
