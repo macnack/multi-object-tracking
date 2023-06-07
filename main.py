@@ -9,6 +9,7 @@ import argparse
 
 
 def load_data_paths(dataset_path):
+    #load image
     images = [join(dataset_path, f) for f in listdir(
         dataset_path) if isfile(join(dataset_path, f)) and not f.startswith("._")]
     return sorted(images)
@@ -22,6 +23,7 @@ def get_ssim(source, target):
 
 
 def get_center_box(box):
+    # Return center of bounding box
     height = abs(box[1] - box[3])
     width = abs(box[0] - box[2])
     return [box[0]+width/2.0, box[1]+height/2.0]
@@ -37,6 +39,7 @@ def distance_to_probability(bbox1, bbox2, decay_rate=0.1):
 
 
 def combine_probabilities(probabilities, weights=None):
+    # Combine probabilities with weights
     if weights is None:
         weights = [1.0 / len(probabilities) for _ in range(len(probabilities))]
     else:
@@ -49,6 +52,7 @@ def combine_probabilities(probabilities, weights=None):
 
 
 def hungarian_algorithm(matrix):
+    # optimize method for biparite_graph
     _, col_idx = linear_sum_assignment(-matrix)
     # return ID of most propability object
     return col_idx
@@ -94,7 +98,7 @@ def bipartite_graph(images_path, data, result=None):
             last_frame = cv.imread(last_frame, cv.IMREAD_COLOR)
 
             rows = max(len(last_objects)+1, len(current_objects)+1)
-            # init adjecency matrix
+            # init adjecency matrix, object of bipartite graph
             adjacency_matrix = np.ones(
                 shape=(rows, len(current_objects))) * 0.3
             for id_last, last_bbox in enumerate(last_objects):
@@ -106,10 +110,11 @@ def bipartite_graph(images_path, data, result=None):
                     # Cropping image
                     curr_object = frame[curr_bbox[1]: curr_bbox[3],
                                         curr_bbox[0]: curr_bbox[2], :]
-
+                    # Calculate metrics
                     iou = np.round(get_iou(last_bbox, curr_bbox), 2)
                     ssim = get_ssim(last_object, curr_object)
                     hist = get_histogram_correlation(last_object, curr_object)
+                    # Put metrics to matrix
                     adjacency_matrix[id_last, id] = combine_probabilities(
                         [iou, ssim, hist], [0.1, 0.3, 0.6])
 
@@ -117,7 +122,6 @@ def bipartite_graph(images_path, data, result=None):
             idx_col = hungarian_algorithm(adjacency_matrix.T)
 
             # Create output buffer
-
             for j in idx_col:
                 if j >= len(last_objects):
                     j = -1
