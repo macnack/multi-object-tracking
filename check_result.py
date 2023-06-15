@@ -1,7 +1,7 @@
 if __name__ == "__main__":
     score = 0
     all_score = 0
-    with open("result.txt", 'r') as result_file:
+    with open("out.txt", 'r') as result_file:
         with open("bboxes_gt.txt", 'r') as ground_truth_file:
             for result, ground in zip(result_file, ground_truth_file):
                 result_filename = result.rsplit()

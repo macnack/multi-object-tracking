@@ -1,5 +1,6 @@
 from os import listdir
-from os.path import isfile, join
+from pathlib import Path
+from os.path import isfile, join, realpath, basename
 from skimage.metrics import structural_similarity as ssim_fun
 import cv2 as cv
 import numpy as np
@@ -9,7 +10,7 @@ import argparse
 
 
 def load_data_paths(dataset_path):
-    #load image
+    # load image
     images = [join(dataset_path, f) for f in listdir(
         dataset_path) if isfile(join(dataset_path, f)) and not f.startswith("._")]
     return sorted(images)
@@ -75,7 +76,7 @@ def read_bboxes(filename, prefix):
                     x)+float(w), float(y)+float(h)]
                 object = [int(round(x)) for x in object]
                 objects.append(object)
-            data[prefix+'/'+str(filename)] = objects
+            data[str(filename)] = objects
     return data
 
 
@@ -89,12 +90,13 @@ def bipartite_graph(images_path, data, result=None):
             output_file.close()
 
     # creating bibartitle_graph
-    for img_path in images_path[:3]:
-        current_objects = data[img_path]
+    for img_path in images_path:
+        bbox_path = basename(img_path)
+        current_objects = data[bbox_path]
         frame = cv.imread(img_path, cv.IMREAD_COLOR)
         output = []
         if last_frame is not None:
-            last_objects = data[last_frame]
+            last_objects = data[last_bbox]
             last_frame = cv.imread(last_frame, cv.IMREAD_COLOR)
 
             rows = max(len(last_objects)+1, len(current_objects)+1)
@@ -127,7 +129,7 @@ def bipartite_graph(images_path, data, result=None):
                     j = -1
                 output.append(j)
         if last_frame is None:
-            for _ in data[img_path]:
+            for _ in data[bbox_path]:
                 output.append(-1)
         # Print output buffer
         output_buffer = " ".join(map(str, output)) + '\n'
@@ -135,12 +137,12 @@ def bipartite_graph(images_path, data, result=None):
 
         # Make history
         last_frame = img_path
-
+        last_bbox = bbox_path
         # Easy to compare format with ground_truth.txt
         if result is not None:
             output_buffer_file = "\n".join(map(str, output)) + '\n'
             with open(result, 'a') as output_file:
-                output_file.write(f"{img_path[len(path)+1:]}\n")
+                output_file.write(f"{basename(img_path)}\n")
                 output_file.write(f"{len(current_objects)}\n")
                 output_file.write(output_buffer_file)
 
@@ -150,11 +152,14 @@ if __name__ == '__main__':
         description="Process files in a directory and write to an output file")
     parser.add_argument("directory", nargs="?", default='frames',
                         help="path to the directory of files")
-    # parser.add_argument("output_file", nargs="?",
-    #                     default='out.csv', help="path to the output file")
+    parser.add_argument("output_file", nargs="?",
+                        default='out.csv', help="path to the output file")
     args = parser.parse_args()
     path = args.directory
-    images_path = load_data_paths(path)
+    path_input = Path(path)
+    images_dir = join(path_input, 'frames')
+    bbox_path = join(path_input, 'bboxes.txt')
+    images_path = load_data_paths(images_dir)
     data = read_bboxes(
-        filename="/".join((path, "..", "bboxes.txt")), prefix=path)
-    bipartite_graph(images_path, data, result=None)
+        filename=bbox_path, prefix=path)
+    bipartite_graph(images_path, data, result=args.output_file)
