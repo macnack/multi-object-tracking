@@ -132,7 +132,7 @@ def bipartite_graph(images_path, data, result=None):
             for _ in data[bbox_path]:
                 output.append(-1)
         # Print output buffer
-        output_buffer = " ".join(map(str, output)) + '\n'
+        output_buffer = " ".join(map(str, output))
         print(output_buffer)
 
         # Make history
@@ -140,7 +140,7 @@ def bipartite_graph(images_path, data, result=None):
         last_bbox = bbox_path
         # Easy to compare format with ground_truth.txt
         if result is not None:
-            output_buffer_file = "\n".join(map(str, output)) + '\n'
+            output_buffer_file = "\n".join(map(str, output))
             with open(result, 'a') as output_file:
                 output_file.write(f"{basename(img_path)}\n")
                 output_file.write(f"{len(current_objects)}\n")
