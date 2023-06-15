@@ -152,8 +152,8 @@ if __name__ == '__main__':
         description="Process files in a directory and write to an output file")
     parser.add_argument("directory", nargs="?", default='frames',
                         help="path to the directory of files")
-    parser.add_argument("output_file", nargs="?",
-                        default='out.csv', help="path to the output file")
+    # parser.add_argument("output_file", nargs="?",
+    #                     default='out.csv', help="path to the output file")
     args = parser.parse_args()
     path = args.directory
     path_input = Path(path)
@@ -162,4 +162,4 @@ if __name__ == '__main__':
     images_path = load_data_paths(images_dir)
     data = read_bboxes(
         filename=bbox_path, prefix=path)
-    bipartite_graph(images_path, data, result=args.output_file)
+    bipartite_graph(images_path, data, result=None)
